@@ -7,15 +7,16 @@ The verification column is filled in as each service ships. "Ledger" entries are
 | ID | Requirement | Owner | Verified by |
 |----|-------------|-------|-------------|
 | ABS-REQ-001 | Only the ledger may authoritatively mutate financial state. | All services | Architecture boundary; no service other than the ledger holds write credentials to financial tables |
-| ABS-REQ-002 | A payment settles at most once. | Payment orchestrator | Idempotent settlement keyed on payment id; regression test with repeated settlement attempts |
-| ABS-REQ-003 | Duplicate provider callbacks must not duplicate settlement. | Payment orchestrator | Callback dedupe; test replays the same success callback N times and asserts one settlement |
-| ABS-REQ-004 | A provider timeout must not be interpreted as failure. | Payment orchestrator | Timeout drives the payment to UNKNOWN; reconciliation resolves it against the provider before any ledger effect |
-| ABS-REQ-005 | Every settled payment references exactly one authoritative ledger transaction. | Payment orchestrator | Settlement stores the ledger transaction id; reconciliation asserts a one-to-one mapping |
+| ABS-REQ-002 | A payment produces its financial effect at most once. | Payment orchestrator | Idempotent reserve, capture and release keyed on payment id; regression test replays each step and asserts no duplicate ledger movement |
+| ABS-REQ-003 | Duplicate provider callbacks must not duplicate the financial effect. | Payment orchestrator | Callback dedupe; test replays the same success callback N times and asserts one capture |
+| ABS-REQ-004 | A provider timeout must not be interpreted as failure. | Payment orchestrator | Timeout drives the payment to UNKNOWN and holds the reservation; reconciliation resolves it against the provider before capture or release |
+| ABS-REQ-005 | Every payment maps to a deterministic, idempotently keyed set of ledger transactions (reserve, then capture or release); retries never add to the set. | Payment orchestrator | Operations keyed `payment:{id}:reserve/capture/release`; test asserts the transaction set is stable under retry |
 | ABS-REQ-006 | Failure of notifications or analytics must not alter financial state. | Notification, Analytics | Failure injection: kill each consumer and assert payments still settle and balances are unchanged |
 | ABS-REQ-007 | Every published event carries a globally unique `event_id`. | All producers | Envelope validation; the ledger already enforces this and it is verified there |
 | ABS-REQ-008 | Consumers must tolerate duplicate delivery. | All consumers | Each consumer deduplicates on `event_id`; unit test for first delivery, redelivery and distinct events |
 | ABS-REQ-009 | Every cross-service operation remains traceable through one `correlation_id`. | All services | A single request's `correlation_id` appears on the payment, the risk decision, the ledger transaction and every downstream event |
 | ABS-REQ-010 | Financial reconciliation can independently recover authoritative state from ledger history. | Ledger | Reconciliation engine recomputes balances from entries; verified in the ledger repository |
+| ABS-REQ-011 | A payment's provider is never called unless funds were successfully reserved. | Payment orchestrator | Reservation runs before any provider call; test asserts a failed reservation ends the payment as FAILED with no provider contact |
 
 ## How these are used
 
