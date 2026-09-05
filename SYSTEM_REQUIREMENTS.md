@@ -17,6 +17,7 @@ The verification column is filled in as each service ships. "Ledger" entries are
 | ABS-REQ-009 | Every cross-service operation remains traceable through one `correlation_id`. | All services | A single request's `correlation_id` appears on the payment, the risk decision, the ledger transaction and every downstream event |
 | ABS-REQ-010 | Financial reconciliation can independently recover authoritative state from ledger history. | Ledger | Reconciliation engine recomputes balances from entries; verified in the ledger repository |
 | ABS-REQ-011 | A payment's provider is never called unless funds were successfully reserved. | Payment orchestrator | Reservation runs before any provider call; test asserts a failed reservation ends the payment as FAILED with no provider contact |
+| ABS-REQ-012 | A payment with an ambiguous provider timeout is never routed to another provider; it is pinned to the original until reconciliation resolves it. | Payment orchestrator | Test asserts a timeout drives UNKNOWN and no fallback occurs before reconciliation; fallback is allowed only after a definitive failure |
 
 ## How these are used
 

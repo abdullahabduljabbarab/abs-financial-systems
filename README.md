@@ -48,10 +48,12 @@ flowchart TD
 
     BUS --> NOT[Notification Service]
     BUS --> AN[Analytics Service]
-    BUS --> RCASE[Risk cases]
+    BUS --> RE
 
     AN --> BQ[(BigQuery read model)]
 ```
+
+The risk engine both decides synchronously (the orchestrator calls it) and consumes transaction events to maintain its own risk state and cases. It owns those cases internally; they are not a separate service.
 
 The ledger is the only component permitted to authoritatively mutate financial state. That boundary is non-negotiable and is enforced as a system requirement, not a convention.
 

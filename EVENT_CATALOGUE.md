@@ -36,7 +36,7 @@ Every event, from every producer, has this shape:
 
 - Events are facts in the past tense. A producer never publishes an intention, only an outcome.
 - Delivery is at-least-once. Every consumer must be safe to run on a duplicate, and deduplicates on `event_id`.
-- Where financial state is involved, events are produced through the transactional outbox, so the event exists if and only if the state change committed.
+- Any service that persists state and emits an event about that state produces the event through a local transactional outbox, so the event is written in the same database transaction as the state change and exists if and only if that change committed. This applies to the orchestrator's payment transitions and the risk engine's cases, not only to the ledger's financial state.
 - Payload changes that are not backward compatible increment `event_version`; consumers handle the versions they understand.
 
 ## Catalogue
@@ -53,15 +53,22 @@ The ledger currently emits a subset of the envelope (`event_id`, `event_type`, a
 
 ### Payment Orchestrator
 
+The orchestrator's events follow the reserve, capture and release lifecycle, so the reservation and its compensation are visible to consumers rather than hidden inside a single "settled".
+
 | Event type | When | Payload |
 |------------|------|---------|
 | `payment.received` | A payment request was accepted | `payment_id`, `account_id`, `amount`, `destination` |
 | `payment.approved` | Risk allowed the payment | `payment_id`, `risk_score` |
 | `payment.rejected` | Risk blocked the payment | `payment_id`, `reasons` |
-| `payment.succeeded` | A provider confirmed success | `payment_id`, `provider`, `provider_ref` |
-| `payment.failed` | A provider confirmed failure | `payment_id`, `provider`, `reason` |
-| `payment.unknown` | A provider outcome is unresolved | `payment_id`, `provider` |
-| `payment.settled` | The payment was settled in the ledger | `payment_id`, `ledger_transaction_id` |
+| `payment.reserved` | Funds were reserved into Payment Suspense | `payment_id`, `reserve_tx_id`, `amount` |
+| `payment.reservation_failed` | Reservation failed, provider not called | `payment_id`, `reason` |
+| `payment.provider_succeeded` | A provider confirmed success | `payment_id`, `provider`, `provider_ref` |
+| `payment.provider_failed` | A provider confirmed failure | `payment_id`, `provider`, `reason` |
+| `payment.unknown` | A provider outcome is unresolved; reservation held | `payment_id`, `provider` |
+| `payment.captured` | Funds moved from Suspense to Settlement Clearing | `payment_id`, `capture_tx_id` |
+| `payment.released` | Reservation compensated back to the customer | `payment_id`, `release_tx_id` |
+| `payment.settled` | Payment completed successfully | `payment_id` |
+| `payment.failed` | Payment ended unsuccessfully | `payment_id`, `reason` |
 
 ### Risk Engine
 

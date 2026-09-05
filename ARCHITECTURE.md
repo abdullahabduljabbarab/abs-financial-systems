@@ -4,7 +4,7 @@
 
 The ledger is the single authoritative owner of financial state. Every other service falls into one of four roles:
 
-- **Requests** a financial operation (the payment orchestrator asks the ledger to settle).
+- **Requests** a financial operation (the payment orchestrator asks the ledger to reserve, capture or release).
 - **Decides** whether an operation should happen (the risk engine allows or blocks).
 - **Consumes** events describing what happened (notifications, analytics, risk state).
 - **Presents** derived information (the portal).
@@ -32,10 +32,10 @@ No service other than the ledger writes to financial state. A balance changes on
                               Pub/Sub
               -------------------------------------------
               |                  |                      |
-        Notifications         Analytics            Risk cases
+        Notifications         Analytics            Risk engine
 ```
 
-The orchestrator sits between a payment request and settlement. It is the only service that talks to external providers, and it is the only service that asks the ledger to settle a payment. Risk sits to the side of the orchestrator: it can change the decision, but it cannot change the money.
+The orchestrator sits between a payment request and settlement. It is the only service that talks to external providers, and the only service permitted to request payment-specific reserve, capture and release operations from the ledger. Risk sits to the side of the orchestrator: it can change the decision, but it cannot change the money. The risk engine appears twice above because it plays two roles: it decides synchronously when the orchestrator asks, and it consumes transaction events asynchronously to maintain its own risk state and cases.
 
 ## Payment lifecycle, end to end
 
@@ -44,15 +44,18 @@ A single payment moves through the platform like this, with one `correlation_id`
 ```
 HTTP request            -> payment created, correlation_id assigned
 Risk evaluation         -> allow / review / block
+Reserve                 -> customer funds held in Payment Suspense
 Provider request        -> success / failed / timeout (unknown)
-Ledger settlement       -> exactly one double-entry transaction
-Outbox event            -> written in the same transaction as the entries
+Capture or release      -> Suspense to Settlement Clearing, or back to customer
+Outbox event            -> written in the same DB transaction as the state change
 Pub/Sub                 -> at-least-once delivery
 Notification            -> side effect, may fail independently
 Analytics               -> read model updated
 ```
 
-The interesting states are the ambiguous ones. A provider **timeout** does not mean the payment failed; it means the outcome is unknown and must be reconciled before any financial effect is applied. Blindly retrying an unknown could settle the same payment twice, so the orchestrator resolves the ambiguity against the provider before touching the ledger. This is [ABS-REQ-004](SYSTEM_REQUIREMENTS.md).
+Money moves through the ledger as a deterministic reserve followed by either a capture or a release, never a single opaque settlement. Reserving before the provider call means funds are held before any external send, so the provider is never asked to move money the customer cannot cover.
+
+The interesting states are the ambiguous ones. A provider **timeout** does not mean the payment failed. The payment stays UNKNOWN while its reservation remains held, and reconciliation asks the provider directly whether to capture or release. Blindly retrying an unknown could move money twice, so the outcome is resolved against the provider before capture or release. This is [ABS-REQ-004](SYSTEM_REQUIREMENTS.md).
 
 ## Data ownership
 
@@ -68,7 +71,9 @@ At portfolio scale this is one managed PostgreSQL instance with logically separa
 
 ## Messaging
 
-Services communicate through Pub/Sub using the shared envelope in [EVENT_CATALOGUE.md](EVENT_CATALOGUE.md). Delivery is **at-least-once**: the same event can arrive more than once, so every consumer deduplicates on `event_id`. Events are produced through the transactional outbox pattern where financial state is involved, so an event exists if and only if the state change that it describes committed.
+Services communicate through Pub/Sub using the shared envelope in [EVENT_CATALOGUE.md](EVENT_CATALOGUE.md). Delivery is **at-least-once**: the same event can arrive more than once, so every consumer deduplicates on `event_id`.
+
+Platform rule: any service that persists state and emits an event about that state uses a local transactional outbox, so the event is written in the same database transaction as the state change. An event therefore exists if and only if the change it describes committed. This applies to the orchestrator's payment transitions and the risk engine's cases, not only to the ledger's financial state, which gives the whole platform one consistent reliability model rather than a different guarantee per service.
 
 ## Traceability
 
