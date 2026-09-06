@@ -14,7 +14,7 @@ Exactly-once delivery across a network is not something a broker can honestly pr
 
 Delivery is at-least-once, stated plainly. Every event carries a globally unique `event_id`, and every consumer deduplicates on it before acting. Where an event describes a committed financial change, it is produced through the transactional outbox pattern, so the event exists if and only if the change committed.
 
-This is recorded as [ABS-REQ-007](../../SYSTEM_REQUIREMENTS.md) and [ABS-REQ-008](../../SYSTEM_REQUIREMENTS.md).
+This is recorded as [ABS-REQ-007](../SYSTEM_REQUIREMENTS.md) and [ABS-REQ-008](../SYSTEM_REQUIREMENTS.md).
 
 ## Consequences
 

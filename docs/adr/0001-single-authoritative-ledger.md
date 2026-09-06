@@ -12,7 +12,7 @@ The platform is a set of services that together move money: a payment orchestrat
 
 Exactly one service, the ledger, may authoritatively mutate financial state. A balance changes only as the result of a double-entry transaction inside the ledger. Every other service either requests a financial operation, decides whether one should occur, consumes events describing what occurred, or presents derived information.
 
-This is recorded as [ABS-REQ-001](../../SYSTEM_REQUIREMENTS.md) and enforced by not giving any other service write access to the financial tables.
+This is recorded as [ABS-REQ-001](../SYSTEM_REQUIREMENTS.md) and enforced by not giving any other service write access to the financial tables.
 
 ## Consequences
 

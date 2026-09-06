@@ -8,52 +8,47 @@ A distributed financial platform built around one authoritative double-entry led
 
 Everything in this ecosystem either asks the ledger to perform a financial operation, decides whether an operation should occur, consumes events describing what occurred, or presents derived information. Only one component is ever allowed to authoritatively change a balance.
 
+This repository is the **system layer** over that ecosystem. It owns no financial, payment, risk, notification, analytics or infrastructure state of its own. It holds the cross-service contracts, the requirements that must hold between services, and the black-box verification that proves they do.
+
 ---
 
 ## The ecosystem
 
+Solid arrows are synchronous calls; dashed arrows are asynchronous events.
+
 ```mermaid
-flowchart TD
-    P[Client / Ops Portal] --> ACC[Account APIs]
-    P --> PAY[Payment API]
-    P --> RSK[Risk APIs]
+flowchart TB
+    PORTAL["Engineering / Ops Portal<br/>read-only"]
 
-    PAY --> ORCH
-
-    subgraph ORCH [Payment Orchestrator]
+    subgraph SYNC["Synchronous control path"]
       direction TB
-      O1[Routing]
-      O2[State machine]
-      O3[Retries and circuit breakers]
-      O4[Reconciliation]
+      CLIENT["API client"] --> ORCH["Payment Orchestrator"]
+      ORCH -->|"risk decision"| RISK["Risk Engine"]
+      ORCH -->|"reserve · capture · release"| LEDGER["Ledger API<br/>authoritative financial state"]
+      ORCH -->|"route"| PROV["Provider simulators A / B / C"]
+      CLIENT -->|"accounts · transactions"| LEDGER
+      CLIENT -->|"evaluate"| RISK
     end
 
-    ORCH --> RE[Risk Engine]
-    ORCH --> PROV[Provider simulators A / B / C]
-
-    ORCH --> LED
-    ACC --> LED
-
-    subgraph LED [Ledger API - authoritative financial state]
+    subgraph ASYNC["Asynchronous fact path"]
       direction TB
-      L1[Accounts]
-      L2[Double-entry journal]
-      L3[Independent reconciliation]
-      L4[Tamper-evident chain]
-      L5[Transactional outbox]
+      BUS["Pub/Sub<br/>at-least-once event delivery"]
+      BUS -.-> NOTIF["Notification Service<br/>strict sink"]
+      BUS -.-> ANALYTICS["Analytics Service<br/>deterministic derived state"]
+      ANALYTICS --> BQ[("BigQuery read model")]
     end
 
-    LED --> BUS[Pub/Sub event bus]
-    RE --> BUS
+    LEDGER -.->|"events"| BUS
+    ORCH -.->|"events"| BUS
+    RISK -.->|"events"| BUS
 
-    BUS --> NOT[Notification Service]
-    BUS --> AN[Analytics Service]
-    BUS --> RE
+    PORTAL -.->|"observes"| ORCH
+    PORTAL -.->|"reads"| ANALYTICS
 
-    AN --> BQ[(BigQuery read model)]
+    style LEDGER stroke-width:3px
 ```
 
-The risk engine both decides synchronously (the orchestrator calls it) and consumes transaction events to maintain its own risk state and cases. It owns those cases internally; they are not a separate service.
+Two paths, deliberately separated. On the **synchronous control path** an API client drives the orchestrator, which calls the risk engine for a decision and the ledger to reserve, capture or release funds, and routes to a provider. On the **asynchronous fact path** the ledger, orchestrator and risk engine publish events to Pub/Sub, which fans them out to the notification and analytics sinks; analytics materialises a deterministic read model in BigQuery. The risk engine also consumes payment events on the async path to maintain its own behavioural state, independently of the synchronous decision it returns.
 
 The ledger is the only component permitted to authoritatively mutate financial state. That boundary is non-negotiable and is enforced as a system requirement, not a convention.
 
@@ -61,40 +56,50 @@ The ledger is the only component permitted to authoritatively mutate financial s
 
 ## Subsystems
 
+All six repositories are built, deployed, and live on Cloud Run. Each was built to the same bar: real tests, real failure evidence, no stubs presented as finished.
+
 | Repository | Role | Status |
 |------------|------|--------|
-| [ledger-api](https://github.com/abdullahabduljabbarab/ledger-api) | Authoritative financial state and settlement engine | Built |
-| payment-orchestrator | Payment lifecycle, provider routing, exactly-once settlement | Next |
-| risk-engine | Deterministic risk evaluation; can block, never settles | Planned |
-| notification-service | Event-driven side effects; failure never touches money | Planned |
-| analytics-service | Read model and metrics, separated from the financial core | Planned |
-| platform-infrastructure | Shared Terraform, IAM, Pub/Sub, monitoring | Planned |
+| [ledger-api](https://github.com/abdullahabduljabbarab/ledger-api) | Authoritative double-entry state and settlement engine | Live |
+| [payment-orchestrator](https://github.com/abdullahabduljabbarab/payment-orchestrator) | Payment lifecycle, provider routing, compensation saga | Live |
+| [risk-engine](https://github.com/abdullahabduljabbarab/risk-engine) | Deterministic, explainable risk evaluation; can block, never settles | Live |
+| [notification-service](https://github.com/abdullahabduljabbarab/notification-service) | Event-driven side effects; a strict sink whose failure never touches money | Live |
+| [analytics-service](https://github.com/abdullahabduljabbarab/analytics-service) | Event-sourced CQRS read model over BigQuery, separated from the financial core | Live |
+| [platform-infrastructure](https://github.com/abdullahabduljabbarab/platform-infrastructure) | Shared Terraform, keyless CI federation, dedicated runtime identities, one owner per resource | Live |
 
-Each subsystem is built to the same bar as the ledger: real tests, real failure evidence, no stubs presented as finished.
+The platform runs with zero long-lived CI credentials (repository-scoped OIDC federation) and every service on its own least-privilege runtime identity.
 
 ---
 
 ## What holds it together
 
-**Authoritative state ownership.** The ledger owns balances. No other service writes to financial state; they request operations or consume the results. See [ARCHITECTURE.md](ARCHITECTURE.md).
+**Authoritative state ownership.** The ledger owns balances. No other service writes to financial state; they request operations or consume the results. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-**System-level invariants.** The properties that must hold across service boundaries (a payment settles at most once, a provider timeout is not a failure, duplicate callbacks do not duplicate settlement) are written down as numbered requirements and mapped to the tests that verify them. See [SYSTEM_REQUIREMENTS.md](SYSTEM_REQUIREMENTS.md).
+**A black-box service contract.** Each service is defined by its public HTTP surface and the events it publishes, nothing more. That contract, endpoints, auth, request and response shapes, and the constraints it imposes, is written down in [docs/SERVICE_CATALOGUE.md](docs/SERVICE_CATALOGUE.md).
 
-**A common event language.** Every service publishes and consumes events in one envelope, carrying a `correlation_id` so a single user action can be traced end to end across every service. See [EVENT_CATALOGUE.md](EVENT_CATALOGUE.md).
+**A common event language.** Every service publishes and consumes events in one envelope, carrying a `correlation_id` so a single user action can be traced across services. See [docs/EVENT_CATALOGUE.md](docs/EVENT_CATALOGUE.md).
+
+**System-level invariants.** The properties that must hold across service boundaries (a payment has at-most-once financial effect, a provider timeout is not a failure, duplicate callbacks do not duplicate settlement, uncertainty never moves money) are written as numbered requirements. See [docs/SYSTEM_REQUIREMENTS.md](docs/SYSTEM_REQUIREMENTS.md).
+
+**Verified, not asserted.** Each requirement maps to a black-box scenario that drives the live services and produces immutable evidence. See [docs/VERIFICATION_PLAN.md](docs/VERIFICATION_PLAN.md).
 
 **Decisions on record.** Architectural decisions are captured as ADRs in [docs/adr/](docs/adr/).
 
 ---
 
-## Build order
+## This repository
 
-1. **ledger-api** (built). The authoritative core.
-2. **payment-orchestrator**. The payment lifecycle and exactly-once settlement, the deepest distributed-systems problem in the platform.
-3. **risk-engine**. Deterministic rules, consumes transaction events, blocks but never settles.
-4. **notification-service**. Proves loose coupling: it can fail and money still moves.
-5. **analytics-service**. The OLTP-versus-analytics separation.
-6. **platform-infrastructure**. Consolidated Terraform, IAM, monitoring.
-7. **Ecosystem portal and system verification**. Live cross-service traces and failure-injection evidence.
+The umbrella is the integration layer, not another service. It has two executable parts.
+
+**Verification harness** ([verification/](verification/)). A black-box system verification suite: typed clients for each service built from the service catalogue, scenarios (SYS-V-*) mapped to the system requirements, and an immutable per-run evidence record. It reaches no service database or queue; it drives the deployed services exactly as any other client would.
+
+**Engineering portal** (`portal/`, planned). A read-only engineering and operations surface over the live ecosystem: system health, payment trace, the verification matrix, and risk, notification and analytics reads. Not a customer banking UI.
+
+### Status
+
+- **M0 discovery** (done). The service catalogue and verification plan were written by inspecting the real repositories, inventing nothing, and reconciled against the deployed code.
+- **M1 verification foundation** (done). The five typed clients and SYS-V-001 (happy-path settlement) run green end to end against the live ecosystem, producing evidence.
+- **M2 onward**: the remaining scenarios (SYS-V-002..013), then the portal.
 
 ---
 

@@ -13,29 +13,41 @@ No service other than the ledger writes to financial state. A balance changes on
 
 ## Layers
 
-```
-                         Client / Ops Portal
-                                 |
-              -------------------------------------------
-              |                  |                      |
-         Account APIs       Payment API             Risk APIs
-                                 |
-                        Payment Orchestrator
-                     routing, state machine, retries,
-                     circuit breakers, reconciliation
-                          |                 |
-                    Risk Engine        Provider simulators
-                          |
-                       Ledger API
-                 authoritative financial state
-                                 |
-                              Pub/Sub
-              -------------------------------------------
-              |                  |                      |
-        Notifications         Analytics            Risk engine
+Solid arrows are synchronous calls; dashed arrows are asynchronous events.
+
+```mermaid
+flowchart TB
+    PORTAL["Engineering / Ops Portal<br/>read-only"]
+
+    subgraph SYNC["Synchronous control path"]
+      direction TB
+      CLIENT["API client"] --> ORCH["Payment Orchestrator"]
+      ORCH -->|"risk decision"| RISK["Risk Engine"]
+      ORCH -->|"reserve · capture · release"| LEDGER["Ledger API<br/>authoritative financial state"]
+      ORCH -->|"route"| PROV["Provider simulators A / B / C"]
+      CLIENT -->|"accounts · transactions"| LEDGER
+      CLIENT -->|"evaluate"| RISK
+    end
+
+    subgraph ASYNC["Asynchronous fact path"]
+      direction TB
+      BUS["Pub/Sub<br/>at-least-once event delivery"]
+      BUS -.-> NOTIF["Notification Service<br/>strict sink"]
+      BUS -.-> ANALYTICS["Analytics Service<br/>deterministic derived state"]
+      ANALYTICS --> BQ[("BigQuery read model")]
+    end
+
+    LEDGER -.->|"events"| BUS
+    ORCH -.->|"events"| BUS
+    RISK -.->|"events"| BUS
+
+    PORTAL -.->|"observes"| ORCH
+    PORTAL -.->|"reads"| ANALYTICS
+
+    style LEDGER stroke-width:3px
 ```
 
-The orchestrator sits between a payment request and settlement. It is the only service that talks to external providers, and the only service permitted to request payment-specific reserve, capture and release operations from the ledger. Risk sits to the side of the orchestrator: it can change the decision, but it cannot change the money. The risk engine appears twice above because it plays two roles: it decides synchronously when the orchestrator asks, and it consumes transaction events asynchronously to maintain its own risk state and cases.
+The orchestrator sits between a payment request and settlement. It is the only service that talks to external providers, and the only service permitted to request payment-specific reserve, capture and release operations from the ledger. Risk sits to the side of the orchestrator: it can change the decision, but it cannot change the money. It plays two roles on the two paths: it decides synchronously when the orchestrator asks, and it consumes payment events asynchronously to maintain its own behavioural account state, which informs later decisions without ever blocking one already returned.
 
 ## Payment lifecycle, end to end
 
@@ -63,7 +75,7 @@ Each service owns its own database. Nothing reaches across into another service'
 
 - **Ledger** owns accounts, transactions and ledger entries. It is the source of truth for balances, which are derived from entries and never stored.
 - **Payment orchestrator** owns payment records and their state history.
-- **Risk engine** owns risk cases and the rolling state it builds from transaction events.
+- **Risk engine** owns its risk decisions and the rolling behavioural account state it builds from payment events.
 - **Notification service** owns a delivery log.
 - **Analytics** owns a read model in BigQuery, populated only from events. It never writes back into the financial core.
 
