@@ -14,7 +14,7 @@ This repository is the **system layer** over that ecosystem. It owns no financia
 
 ## The ecosystem
 
-Solid arrows are synchronous calls; dashed arrows are asynchronous events.
+Line styles: a solid line is a synchronous request or control call, a dashed line is an asynchronous event, and a dotted grey line is the portal's read-only observation.
 
 ```mermaid
 flowchart TB
@@ -22,8 +22,8 @@ flowchart TB
 
     subgraph SYNC["Synchronous control path"]
       direction TB
-      CLIENT["API client"] --> ORCH["Payment Orchestrator"]
-      ORCH -->|"risk decision"| RISK["Risk Engine"]
+      CLIENT["Verification Harness / API Client"] --> ORCH["Payment Orchestrator"]
+      ORCH -->|"evaluate / decision"| RISK["Risk Engine"]
       ORCH -->|"reserve · capture · release"| LEDGER["Ledger API<br/>authoritative financial state"]
       ORCH -->|"route"| PROV["Provider simulators A / B / C"]
       CLIENT -->|"accounts · transactions"| LEDGER
@@ -46,6 +46,7 @@ flowchart TB
     PORTAL -.->|"reads"| ANALYTICS
 
     style LEDGER stroke-width:3px
+    linkStyle 12,13 stroke:gray,stroke-dasharray:2 6
 ```
 
 Two paths, deliberately separated. On the **synchronous control path** an API client drives the orchestrator, which calls the risk engine for a decision and the ledger to reserve, capture or release funds, and routes to a provider. On the **asynchronous fact path** the ledger, orchestrator and risk engine publish events to Pub/Sub, which fans them out to the notification and analytics sinks; analytics materialises a deterministic read model in BigQuery. The risk engine also consumes payment events on the async path to maintain its own behavioural state, independently of the synchronous decision it returns.

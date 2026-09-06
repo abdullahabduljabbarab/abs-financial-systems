@@ -13,7 +13,7 @@ No service other than the ledger writes to financial state. A balance changes on
 
 ## Layers
 
-Solid arrows are synchronous calls; dashed arrows are asynchronous events.
+Line styles: a solid line is a synchronous request or control call, a dashed line is an asynchronous event, and a dotted grey line is the portal's read-only observation.
 
 ```mermaid
 flowchart TB
@@ -21,8 +21,8 @@ flowchart TB
 
     subgraph SYNC["Synchronous control path"]
       direction TB
-      CLIENT["API client"] --> ORCH["Payment Orchestrator"]
-      ORCH -->|"risk decision"| RISK["Risk Engine"]
+      CLIENT["Verification Harness / API Client"] --> ORCH["Payment Orchestrator"]
+      ORCH -->|"evaluate / decision"| RISK["Risk Engine"]
       ORCH -->|"reserve · capture · release"| LEDGER["Ledger API<br/>authoritative financial state"]
       ORCH -->|"route"| PROV["Provider simulators A / B / C"]
       CLIENT -->|"accounts · transactions"| LEDGER
@@ -45,6 +45,7 @@ flowchart TB
     PORTAL -.->|"reads"| ANALYTICS
 
     style LEDGER stroke-width:3px
+    linkStyle 12,13 stroke:gray,stroke-dasharray:2 6
 ```
 
 The orchestrator sits between a payment request and settlement. It is the only service that talks to external providers, and the only service permitted to request payment-specific reserve, capture and release operations from the ledger. Risk sits to the side of the orchestrator: it can change the decision, but it cannot change the money. It plays two roles on the two paths: it decides synchronously when the orchestrator asks, and it consumes payment events asynchronously to maintain its own behavioural account state, which informs later decisions without ever blocking one already returned.
