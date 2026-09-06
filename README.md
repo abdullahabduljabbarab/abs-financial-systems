@@ -96,11 +96,7 @@ The umbrella is the integration layer, not another service. It has two executabl
 
 **Engineering portal** (`portal/`, planned). A read-only engineering and operations surface over the live ecosystem: system health, payment trace, the verification matrix, and risk, notification and analytics reads. Not a customer banking UI.
 
-### Status
-
-- **M0 discovery** (done). The service catalogue and verification plan were written by inspecting the real repositories, inventing nothing, and reconciled against the deployed code.
-- **M1 verification foundation** (done). The five typed clients and SYS-V-001 (happy-path settlement) run green end to end against the live ecosystem, producing evidence.
-- **M2 onward**: the remaining scenarios (SYS-V-002..013), then the portal.
+Build progress is tracked in [docs/PRODUCTION_LOG.md](docs/PRODUCTION_LOG.md).
 
 ---
 
