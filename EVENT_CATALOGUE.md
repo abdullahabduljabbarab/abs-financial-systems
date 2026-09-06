@@ -59,7 +59,7 @@ The orchestrator's events follow the reserve, capture and release lifecycle, so 
 |------------|------|---------|
 | `payment.received` | A payment request was accepted | `payment_id`, `account_id`, `amount`, `destination` |
 | `payment.approved` | Risk allowed the payment | `payment_id`, `risk_score` |
-| `payment.rejected` | Risk blocked the payment | `payment_id`, `reasons` |
+| `payment.rejected` | Risk blocked the payment | `payment_id`, `account_id`, `reasons`, `score` |
 | `payment.reserved` | Funds were reserved into Payment Suspense | `payment_id`, `reserve_tx_id`, `amount` |
 | `payment.reservation_failed` | Reservation failed, provider not called | `payment_id`, `reason` |
 | `payment.provider_succeeded` | A provider confirmed success | `payment_id`, `provider`, `provider_ref` |
@@ -67,22 +67,24 @@ The orchestrator's events follow the reserve, capture and release lifecycle, so 
 | `payment.unknown` | A provider outcome is unresolved; reservation held | `payment_id`, `provider` |
 | `payment.captured` | Funds moved from Suspense to Settlement Clearing | `payment_id`, `capture_tx_id` |
 | `payment.released` | Reservation compensated back to the customer | `payment_id`, `release_tx_id` |
-| `payment.settled` | Payment completed successfully | `payment_id` |
-| `payment.failed` | Payment ended unsuccessfully | `payment_id`, `reason` |
+| `payment.settled` | Payment completed successfully | `payment_id`, `account_id` |
+| `payment.failed` | Payment ended unsuccessfully | `payment_id`, `account_id`, `reason` |
 
 ### Risk Engine
 
 | Event type | When | Payload |
 |------------|------|---------|
-| `risk.evaluated` | A risk decision was made | `payment_id`, `decision`, `score`, `reasons` |
-| `risk.alert.created` | A risk case was opened for review | `case_id`, `account_id`, `reasons` |
+| `risk.evaluated` | A risk decision was made | `payment_id`, `account_id`, `decision`, `score`, `reasons` |
 
 ### Notification Service
 
-| Event type | When | Payload |
-|------------|------|---------|
-| `notification.sent` | A notification was delivered | `notification_id`, `channel`, `destination` |
-| `notification.failed` | Delivery failed after retries | `notification_id`, `channel`, `reason` |
+The notification service is a strict sink: it consumes `payment-events` and `risk-events` and produces customer-facing messages. It publishes no events and has no outbound broker path, by design (its isolation is the point, ABS-REQ-006). Its delivery records are exposed over a read API, not as events. It therefore has no entry in this catalogue as a producer.
+
+Customer-facing events it acts on must carry `account_id`, so it can determine the recipient from the event alone without ever calling back upstream. That is why `payment.settled`, `payment.failed` and `payment.rejected` carry `account_id` above.
+
+### Analytics Service
+
+The analytics service is also a strict sink. It consumes all three event topics (`transaction-events`, `payment-events`, `risk-events`) into a durable raw-event history and materialises read projections over it. Like the notification service it publishes no events and has no outbound broker path (ABS-REQ-006); its projections are exposed over a read API. It therefore has no entry in this catalogue as a producer.
 
 ## Topics
 
@@ -91,6 +93,9 @@ Events are grouped onto Pub/Sub topics by aggregate:
 - `transaction-events` (ledger)
 - `payment-events` (orchestrator)
 - `risk-events` (risk engine)
-- `notification-events` (notifications)
+
+There is deliberately no notification topic: the notification service is a strict
+sink and publishes nothing (ABS-REQ-006). Each topic has a paired dead-letter
+topic owned by the consumer that dead-letters onto it.
 
 Consumers subscribe to the topics they care about and filter by `event_type` within them.
