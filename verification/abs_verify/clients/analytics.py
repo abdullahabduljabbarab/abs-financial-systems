@@ -28,3 +28,7 @@ class AnalyticsClient(BaseClient):
     def watermark(self) -> Watermark:
         """The current raw-event watermark, read off any projection response."""
         return Watermark.model_validate(self.overview()["watermark"])
+
+    def events(self, correlation_id: str) -> list[dict[str, Any]]:
+        """Trace-safe event metadata analytics ingested under a correlation id."""
+        return self.get_json("/analytics/events", params={"correlation_id": correlation_id})["events"]

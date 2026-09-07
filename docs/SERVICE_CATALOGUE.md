@@ -253,6 +253,7 @@ A durable raw-event history plus deterministic projections rebuildable from it.
 | `GET /analytics/providers` | none | Per-provider settlement performance |
 | `GET /analytics/timeseries` | none | Daily platform metrics |
 | `GET /analytics/accounts/{account_id}` | none | Activity summary for one account |
+| `GET /analytics/events?correlation_id={id}` | none | Trace-safe event metadata (no payload) for one correlation id |
 | `POST /events/pubsub` | OIDC push | Ingest an event into raw history (the only write path) |
 
 **Watermark.** Every `/analytics/*` response (except the single-account one, which
@@ -267,6 +268,15 @@ full ABS envelope in `message.data` (orchestrator, risk), and the ledger's
 attribute-style form (payload in `data`, `event_id`/`event_type` in
 `message.attributes`). Persisting the raw event is the durable action; projections
 are refreshed off that path, never inline.
+
+**Correlation trace.** `GET /analytics/events?correlation_id={id}` returns
+`{ "correlation_id": ..., "events": [ ... ] }`, one entry per event analytics
+ingested under that id, in occurrence order, deduplicated by `event_id`. Each entry
+is trace metadata only, `event_id`, `event_type`, `event_version`, `occurred_at`,
+`producer`, `correlation_id`, `causation_id`, `aggregate_id`, `account_id`,
+`payment_id`, never the payload. It reads raw history, so it does not wait on a
+refresh. This closes the cross-service trace into analytics and backs the portal's
+payment trace.
 
 **Refresh is not HTTP.** Materialization is a CLI (`python -m app.admin
 refresh|rebuild|status|ensure`) deployed as the `analytics-refresh` Cloud Run Job

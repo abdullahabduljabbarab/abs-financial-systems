@@ -148,24 +148,24 @@ and then capped at 100, so the reasons reconstruct the score through the documen
 cap, not as a raw sum.
 
 ### SYS-V-011 Cross-service traceability
-**Covers:** ABS-REQ-009 (partial, see gap).
-For one payment, take its `correlation_id` and assert the same value appears on the
-risk decision (`GET /decisions/{evaluation_id}`) and on every downstream
-notification delivery (`GET /notifications/{payment_id}`). Assert the ledger
-financial effect is reachable through the orchestrator's recorded `reserve_tx_id` /
-`capture_tx_id` / `release_tx_id` (the ledger transaction is keyed by idempotency
-key, not correlation id), so the trace is complete without inventing a ledger
-correlation field.
-**Known interface gap (analytics).** Analytics exposes aggregate projections and a
-watermark, but no per-event or per-correlation lookup, so correlation continuity
-**into analytics** cannot be proven as a black-box test today. This is a genuine
-observability gap, not something to paper over by reading its store. The smallest
-domain-correct fix is one read-only endpoint,
-`GET /analytics/events?correlation_id={id}`, returning event metadata (ids, types,
-correlation id, timestamps) rather than analytical internals; it also directly
-serves the portal's Payment Trace. Until that endpoint exists, SYS-V-011 proves
-correlation across payment, risk and notification, and the analytics leg is left to
-the analytics repository's own tests, with the system-level claim scoped honestly.
+**Covers:** ABS-REQ-009.
+For one settled payment, take its `correlation_id` and assert the same value appears
+on the downstream notification delivery (`GET /notifications/{payment_id}`) and, in
+the analytics correlation trace (`GET /analytics/events?correlation_id={id}`), on
+every ingested event. The analytics trace closes the risk and analytics legs
+together: it includes the `risk.evaluated` event, which the orchestrator emits with
+the payment's `correlation_id`, so the id is shown to thread through risk and
+analytics without needing a separate risk-decision lookup. Assert the trace spans
+the payment and the risk decision and names both the orchestrator and the risk
+engine as producers. The ledger financial effect is reached through the
+orchestrator's recorded `reserve_tx_id` / `capture_tx_id` (the ledger transaction is
+keyed by idempotency key, not correlation id), so the trace is complete without
+inventing a ledger correlation field.
+**Interface addition.** The analytics correlation trace endpoint,
+`GET /analytics/events?correlation_id={id}`, was the one genuine observability gap
+found in discovery. It was added as the smallest domain-correct fix: read-only,
+trace metadata only (no payload), reading raw history. It also backs the portal's
+payment trace.
 
 ### SYS-V-012 Independent ledger and projection integrity
 **Covers:** ABS-REQ-010, and analytics rebuild determinism.
@@ -203,7 +203,7 @@ synchronous path is independent of async feed freshness.
 | ABS-REQ-006 | SYS-V-008 |
 | ABS-REQ-007 | Enforced and verified in each producer repository (envelope `event_id`); observed here indirectly through dedup in SYS-V-009 |
 | ABS-REQ-008 | SYS-V-009 |
-| ABS-REQ-009 | SYS-V-011 (payment, risk, notification; analytics leg pending the proposed `GET /analytics/events` endpoint) |
+| ABS-REQ-009 | SYS-V-011 (payment, notification, and risk plus analytics via the correlation trace) |
 | ABS-REQ-010 | SYS-V-012 |
 | ABS-REQ-011 | SYS-V-002, SYS-V-006 |
 | ABS-REQ-012 | SYS-V-005 |
@@ -225,6 +225,6 @@ synchronous path is independent of async feed freshness.
 - It does not treat Cloud Run scale-to-zero as downtime; it interrupts delivery at
   the Pub/Sub layer instead.
 - It does not read any service's database or queue to close an observability gap.
-  Where the interface genuinely cannot prove a property (analytics correlation
-  continuity), it says so and proposes the smallest domain-correct read-only
-  addition rather than reaching inside.
+  The one gap discovery found, correlation continuity into analytics, was closed by
+  adding a read-only, metadata-only trace endpoint to analytics, the smallest
+  domain-correct fix, rather than by reaching inside the store.
