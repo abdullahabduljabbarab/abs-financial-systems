@@ -99,3 +99,49 @@ subscription states before, during and after. The whole suite runs with
 
 **State:** complete. Next: M3, the portal BFF, then M4 the frontend and M5 deploy
 and evidence.
+
+## Milestone 3-4: The engineering portal
+
+**Goal:** A read-only engineering and operations surface over the live ecosystem,
+built as one Cloud Run service, without becoming a financial service itself.
+
+**Built** (`portal/`):
+- **BFF** (`bff/`): a FastAPI backend-for-frontend that aggregates the services with
+  no database, no writes and no privileged credentials. It exposes aggregate health,
+  a payment's cross-service trace (state, lifecycle, ledger effect, notifications and
+  the analytics event trace, joined by correlation id), the verification matrix, and
+  read-only analytics projections. The ledger's authenticated reads are deliberately
+  out of scope: the trace reaches the ledger effect through the orchestrator's
+  recorded transaction ids, not by reading the ledger as a privileged user.
+- **Frontend** (`frontend/`): a React + TypeScript + Vite single-page app with a dark
+  control-surface identity, served by the BFF from the same origin. Four views:
+  system health, payment trace, the verification matrix (with per-scenario assertion
+  drawers), and analytics.
+
+**State:** complete.
+
+## Milestone 5: Deploy and evidence
+
+**Built:**
+- A multi-stage `Dockerfile` that builds the frontend with Node and serves it from
+  the BFF, so `abs-portal` is a single origin.
+- Keyless CI (`.github/workflows/ci.yml`): the BFF tests and the frontend build gate
+  a deploy job that, on main, builds and pushes the image and deploys it to Cloud
+  Run via Workload Identity Federation. No key is stored.
+- The portal's deploy infrastructure is owned in platform-infrastructure (its
+  Artifact Registry repo, a repository-scoped `abs-portal-deploy` identity, and a
+  dedicated `abs-portal-runtime` identity with no cloud permissions), matching the
+  ownership rule that the platform owns how the portal deploys.
+
+**Verified live:** `abs-portal` is deployed and public at
+`https://abs-portal-eppidgbmxa-nw.a.run.app`, running as `abs-portal-runtime`. It
+serves the built frontend, and its aggregate-health endpoint reports all five
+services healthy through the portal.
+
+**Evidence:** the verification harness runs all thirteen scenarios green against the
+live ecosystem (`python -m abs_verify.runner all`), each producing an immutable
+evidence file; the portal surfaces the requirement-to-scenario matrix and a live
+cross-service payment trace.
+
+**State:** complete. The umbrella is assembled: a black-box verification programme
+and a read-only engineering portal over the live ecosystem.

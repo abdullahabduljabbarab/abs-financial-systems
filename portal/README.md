@@ -6,6 +6,8 @@ It is not a customer banking UI, and it is not a financial service. It holds no
 database, performs no writes, and uses no privileged credentials; it only calls the
 services' public read APIs and composes the answers.
 
+**Live:** https://abs-portal-eppidgbmxa-nw.a.run.app
+
 One Cloud Run service, `abs-portal`, serves both halves:
 
 - **`bff/`** (this milestone). A FastAPI backend-for-frontend that aggregates the

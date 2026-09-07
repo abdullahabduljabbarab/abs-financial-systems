@@ -94,7 +94,7 @@ The umbrella is the integration layer, not another service. It has two executabl
 
 **Verification harness** ([verification/](verification/)). A black-box system verification suite: typed clients for each service built from the service catalogue, scenarios (SYS-V-*) mapped to the system requirements, and an immutable per-run evidence record. It reaches no service database or queue; it drives the deployed services exactly as any other client would.
 
-**Engineering portal** (`portal/`, planned). A read-only engineering and operations surface over the live ecosystem: system health, payment trace, the verification matrix, and risk, notification and analytics reads. Not a customer banking UI.
+**Engineering portal** ([`portal/`](portal/), live at [abs-portal](https://abs-portal-eppidgbmxa-nw.a.run.app)). A read-only engineering and operations surface over the live ecosystem: system health, a cross-service payment trace, the verification matrix, and risk, notification and analytics reads. One Cloud Run service serving a FastAPI BFF and a React frontend. Not a customer banking UI.
 
 Build progress is tracked in [docs/PRODUCTION_LOG.md](docs/PRODUCTION_LOG.md).
 
