@@ -181,6 +181,11 @@ def subscriptions_push_cut(config: Config, subscriptions: list[str], ev) -> Iter
             )
 
 
+def subscription_push_endpoint(config: Config, subscription: str) -> str:
+    """The subscription's current push endpoint, for asserting a cut is in effect."""
+    return _describe_push(config, subscription)[0]
+
+
 def publish_to_topic(config: Config, topic: str, message: str) -> None:
     """Publish one message to a topic as controlled operator tooling (used to inject
     a duplicate delivery). Pub/Sub adds the subscription's OIDC token on push."""

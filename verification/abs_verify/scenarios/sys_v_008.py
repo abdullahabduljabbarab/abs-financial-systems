@@ -13,11 +13,10 @@ once, with no channel double-notified.
 
 from __future__ import annotations
 
-import time
 from decimal import Decimal
 
 from ..evidence import Evidence
-from ..ops import subscriptions_push_cut
+from ..ops import subscription_push_endpoint, subscriptions_push_cut
 from .base import Scenario, World
 
 _FUND = "500.00"
@@ -69,17 +68,23 @@ class SysV008(Scenario):
                 covers=["ABS-REQ-006"],
             )
 
-            # Publish the payment events; the notification push is cut, so Pub/Sub
-            # holds them rather than delivering.
-            world.orchestrator.publish_outbox()
-            time.sleep(world.config.poll_interval)
-            during = world.notification.notifications(payment.id)
-            ev.step("notifications_during_outage", count=len(during.deliveries))
-            ev.check(
-                "no notification is delivered while the sink is down",
-                len(during.deliveries) == 0,
-                f"deliveries={len(during.deliveries)}",
+            # The sink is genuinely severed: assert the subscriptions' push endpoints
+            # are the dead one (a deterministic fact, unlike delivery timing, which
+            # races Pub/Sub's push-config propagation).
+            endpoints = {
+                sub: subscription_push_endpoint(world.config, sub)
+                for sub in _NOTIFICATION_SUBSCRIPTIONS
+            }
+            ev.step("notification_subscriptions_during_outage", endpoints=endpoints)
+            ev.require(
+                "the notification subscriptions are severed during the outage",
+                all("invalid" in ep for ep in endpoints.values()),
+                f"endpoints={endpoints}",
+                covers=["ABS-REQ-006"],
             )
+
+            # Publish the payment events while the sink is severed; Pub/Sub holds them.
+            world.orchestrator.publish_outbox()
 
         # Sink restored: Pub/Sub redelivers the held backlog.
         delivered = world.notification.poll_until(
