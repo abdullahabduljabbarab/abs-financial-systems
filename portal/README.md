@@ -8,6 +8,8 @@ services' public read APIs and composes the answers.
 
 **Live:** https://abs-portal-eppidgbmxa-nw.a.run.app
 
+![Portal payment trace](../docs/images/portal-trace.png)
+
 One Cloud Run service, `abs-portal`, serves both halves:
 
 - **`bff/`** (this milestone). A FastAPI backend-for-frontend that aggregates the

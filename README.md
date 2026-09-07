@@ -100,6 +100,26 @@ Build progress is tracked in [docs/PRODUCTION_LOG.md](docs/PRODUCTION_LOG.md).
 
 ---
 
+## The portal
+
+Live at [abs-portal-eppidgbmxa-nw.a.run.app](https://abs-portal-eppidgbmxa-nw.a.run.app). A read-only observation surface over the live ecosystem, all four views drive the real services through the BFF.
+
+**System** opens with the platform's thesis, its live state, and a card per service naming what each one owns.
+
+![Portal system view: platform state and per-service health](docs/images/portal-system.png)
+
+**Payment trace** follows one payment across every service, joined by its correlation id: its lifecycle rail, the ledger effect (the orchestrator's recorded reserve and capture transaction ids), the notification deliveries, and the analytics event trace, each event colour-railed by its producer.
+
+![Portal payment trace: lifecycle, ledger effect, notifications and event trace](docs/images/portal-trace.png)
+
+**Verification** is the requirement-to-scenario matrix, every ABS-REQ mapped to the black-box scenario that proves it, with a coverage bar and per-scenario assertion drawers. **Analytics** is the event-sourced read model with its watermark, outcome and risk distributions, and volume over time.
+
+| Verification matrix | Analytics read model |
+|---|---|
+| ![Portal verification matrix](docs/images/portal-verification.png) | ![Portal analytics](docs/images/portal-analytics.png) |
+
+---
+
 ## Scope discipline
 
 This platform deliberately does not include Kubernetes, Kafka, Redis, blockchain, real card networks, SWIFT, ISO 20022, credit scoring, real customer data, or machine-learning fraud models. Every component has to answer one question before it is added: what actual engineering problem does it solve. The value is in the correctness and failure behaviour of a small number of well-defined services, not in the length of the technology list.
