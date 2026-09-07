@@ -22,22 +22,21 @@ export function App() {
   return (
     <div className="app">
       <header className="masthead">
-        <h1>
-          ABS <span className="accent">Engineering Portal</span>
-        </h1>
+        <div className="mark">
+          <span className="abs">A<b>·</b>B<b>·</b>S</span>
+          <span className="title">Engineering Portal</span>
+        </div>
         <span className="sub">read-only observation surface</span>
         <span className="spacer" />
-        <span className="pill-overall">
-          {health.loading ? (
-            <Pill kind="neutral">probing</Pill>
-          ) : health.error ? (
-            <Pill kind="bad">portal error</Pill>
-          ) : health.data?.healthy ? (
-            <Pill kind="ok">all systems nominal</Pill>
-          ) : (
-            <Pill kind="warn">degraded</Pill>
-          )}
-        </span>
+        {health.loading ? (
+          <Pill kind="neutral">probing</Pill>
+        ) : health.error ? (
+          <Pill kind="bad">portal error</Pill>
+        ) : health.data?.healthy ? (
+          <Pill kind="ok">all systems nominal</Pill>
+        ) : (
+          <Pill kind="warn">degraded</Pill>
+        )}
       </header>
 
       <nav className="nav">

@@ -1,30 +1,50 @@
 import { api, type ServiceHealth } from "../api";
 import { Panel, Pill, useAsync } from "../ui";
 
-function detailLine(detail: Record<string, unknown>): string {
-  const parts: string[] = [];
-  if (typeof detail.database === "string") parts.push(`db ${detail.database}`);
-  if (typeof detail.backend === "string") parts.push(`store ${detail.backend}`);
-  if (typeof detail.db_latency_ms === "number") parts.push(`${detail.db_latency_ms}ms db`);
-  if (typeof detail.error === "string") parts.push(detail.error);
-  return parts.join(" · ") || "ok";
+interface Meta {
+  role: string;
+  desc: string;
+  tech: string;
+  stream: string;
+}
+
+const META: Record<string, Meta> = {
+  "ledger-api": { role: "Authoritative financial state", desc: "Double-entry ledger, tamper-evident chain", tech: "PostgreSQL · Cloud SQL", stream: "transaction-events" },
+  "payment-orchestrator": { role: "Payment lifecycle authority", desc: "Risk → reserve → provider → capture", tech: "PostgreSQL · Cloud SQL", stream: "payment-events" },
+  "risk-engine": { role: "Deterministic decision engine", desc: "Weighted rules, replayable, explainable", tech: "PostgreSQL · Cloud SQL", stream: "risk-events" },
+  "notification-service": { role: "Strict downstream sink", desc: "Email + SMS fan-out, no outbound path", tech: "PostgreSQL · Cloud SQL", stream: "consumes payment · risk" },
+  "analytics-service": { role: "Deterministic read model", desc: "Event-sourced CQRS projections", tech: "BigQuery", stream: "consumes all streams" },
+};
+
+function dbState(detail: Record<string, unknown>): string {
+  if (typeof detail.database === "string") return `db ${detail.database}`;
+  if (typeof detail.backend === "string") return `store ${detail.backend}`;
+  if (typeof detail.error === "string") return String(detail.error);
+  return "—";
 }
 
 function ServiceCard({ s }: { s: ServiceHealth }) {
-  const width = Math.min(100, (s.latency_ms / 400) * 100);
+  const m = META[s.service];
   return (
     <Panel>
       <div className="svc">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span className="name">{s.service}</span>
+        <div className="top">
+          <div>
+            <div className="name">{s.service}</div>
+            {m && <div className="role">{m.role}</div>}
+          </div>
           <Pill kind={s.healthy ? "ok" : "bad"}>{s.healthy ? "healthy" : "down"}</Pill>
         </div>
-        <div className="bar">
-          <span style={{ width: `${s.healthy ? width : 100}%`, background: s.healthy ? undefined : "var(--red)" }} />
-        </div>
-        <div className="meta">
-          <span>{detailLine(s.detail)}</span>
-          <span>{s.status_code ?? "—"} · {s.latency_ms}ms</span>
+        {m && <div className="desc">{m.desc}</div>}
+        {m && (
+          <div className="chips">
+            <span className="chip">{m.tech}</span>
+            <span className="chip topic">{m.stream}</span>
+          </div>
+        )}
+        <div className="foot">
+          <span>{dbState(s.detail)}</span>
+          <span><b>{s.status_code ?? "—"}</b> · {s.latency_ms}ms</span>
         </div>
       </div>
     </Panel>
@@ -33,9 +53,43 @@ function ServiceCard({ s }: { s: ServiceHealth }) {
 
 export function HealthView() {
   const { data, error, loading } = useAsync(() => api.health(), []);
+  const healthy = data ? data.services.filter((s) => s.healthy).length : 0;
+  const total = data ? data.services.length : 5;
 
   return (
     <div>
+      <section className="hero">
+        <div className="eyebrow">A · B · S Financial Systems</div>
+        <div className="lede">
+          One <span className="accent">ledger</span>. Explicit <span className="gold">ownership</span>. Evidence under failure.
+        </div>
+        <div className="facts">
+          <span><b>5</b> services</span><span className="sep">·</span>
+          <span><b>3</b> event streams</span><span className="sep">·</span>
+          <span><b>europe-west2</b></span><span className="sep">·</span>
+          <span>read-only portal</span>
+        </div>
+      </section>
+
+      <div className="pstate">
+        <div className="cell">
+          <span className={`big ${healthy === total ? "ok" : "teal"}`}>{healthy} / {total}</span>
+          <span className="lbl">services healthy</span>
+        </div>
+        <div className="cell">
+          <span className="big teal">ledger-api</span>
+          <span className="lbl">authoritative state</span>
+        </div>
+        <div className="cell">
+          <span className="big">Pub/Sub</span>
+          <span className="lbl">event backbone</span>
+        </div>
+        <div className="cell">
+          <span className="big">europe-west2</span>
+          <span className="lbl">region · Cloud Run</span>
+        </div>
+      </div>
+
       <h2 className="view-title">System health</h2>
       <p className="view-note">
         Live liveness of every service, probed through the portal. The portal reads only; a
@@ -44,7 +98,7 @@ export function HealthView() {
       {loading && <p className="muted">Probing services…</p>}
       {error && <p className="error">Portal error: {error}</p>}
       {data && (
-        <div className="grid cols-3">
+        <div className="grid auto">
           {data.services.map((s) => (
             <ServiceCard key={s.service} s={s} />
           ))}

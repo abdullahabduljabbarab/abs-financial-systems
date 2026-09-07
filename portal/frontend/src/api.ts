@@ -75,6 +75,7 @@ export interface Scenario {
   id: string;
   title: string;
   covers: string[];
+  assertions?: string[];
 }
 
 export interface Matrix {
