@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 import uuid
 from dataclasses import dataclass
 
@@ -58,6 +59,38 @@ class World:
         )
         return account.id
 
+    def warm_risk_feed(self, ev, attempts: int = 6) -> bool:
+        """Make risk's behavioural feed fresh so STATE_STALE does not fire.
+
+        Risk's STATE_STALE rule fires on the age of its consumed payment-event feed,
+        not per account: when risk has not ingested a payment event recently, a fresh
+        account scores into block. Feed it a recent payment.received by driving a
+        throwaway payment and draining the orchestrator outbox, then confirm through a
+        probe evaluation that STATE_STALE has cleared. Returns True once warm.
+        """
+        warm_account = self.ledger.create_account("warmup-" + uuid.uuid4().hex[:8])
+        self.orchestrator.create_payment(warm_account.id, "1.00", "warmup-" + uuid.uuid4().hex[:6])
+        self.orchestrator.publish_outbox()
+        for _ in range(attempts):
+            time.sleep(self.config.poll_interval)
+            probe = self.risk.evaluate(
+                {
+                    "evaluation_id": str(uuid.uuid4()),
+                    "payment_id": str(uuid.uuid4()),
+                    "account_id": str(uuid.uuid4()),
+                    "amount": "10.00",
+                    "destination": "warm-probe-" + uuid.uuid4().hex[:6],
+                    "correlation_id": str(uuid.uuid4()),
+                }
+            )
+            reasons = [r["rule"] for r in probe.model_dump().get("reasons", [])]
+            if "STATE_STALE" not in reasons:
+                ev.step("risk_feed_warmed", probe_reasons=reasons)
+                return True
+            self.orchestrator.publish_outbox()
+        ev.step("risk_feed_warm_incomplete", note="STATE_STALE still firing after warm-up")
+        return False
+
     def drive_settled_payment(
         self, account_id: str, amount: str, destination: str, max_attempts: int = 25
     ):
@@ -82,6 +115,9 @@ class Scenario:
     id: str = "sys-v-000"
     title: str = "unnamed"
     covers: list[str] = []
+    # Scenarios that need deterministic provider outcomes run inside a controlled
+    # window that enables the orchestrator's provider-outcome seam and restores it.
+    requires_provider_hooks: bool = False
 
     def run(self, world: World, ev: Evidence) -> None:  # pragma: no cover - interface
         raise NotImplementedError

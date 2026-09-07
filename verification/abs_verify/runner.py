@@ -54,7 +54,13 @@ def run_scenario(scenario_id: str) -> int:
     ev = Evidence(scenario.id, scenario.title, scenario.covers, config.evidence_dir)
     world = World.from_config(config)
     try:
-        scenario.run(world, ev)
+        if getattr(scenario, "requires_provider_hooks", False):
+            from .ops import provider_hooks
+
+            with provider_hooks(config, ev):
+                scenario.run(world, ev)
+        else:
+            scenario.run(world, ev)
     except AssertionFailed as exc:
         # A required assertion failed; it is already recorded on the evidence.
         ev.error = str(exc)
