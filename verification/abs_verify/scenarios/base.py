@@ -58,6 +58,23 @@ class World:
         )
         return account.id
 
+    def drive_settled_payment(
+        self, account_id: str, amount: str, destination: str, max_attempts: int = 25
+    ):
+        """Create payments until one settles; return (payment, [states seen]).
+
+        POST /payments is stochastic (provider simulator plus risk), so a settle is
+        driven by bounded retry. A deterministic provider-outcome seam (M2) will make
+        this a single call. `payment` is None if none settled within max_attempts.
+        """
+        states: list[str] = []
+        for _ in range(max_attempts):
+            payment = self.orchestrator.create_payment(account_id, amount, destination)
+            states.append(payment.state)
+            if payment.state == "settled":
+                return payment, states
+        return None, states
+
 
 class Scenario:
     """Base class for a system verification scenario."""
