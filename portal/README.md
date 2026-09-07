@@ -19,7 +19,11 @@ One Cloud Run service, `abs-portal`, serves both halves:
   - `GET /api/analytics/{view}` a read-only analytics projection
     (`overview`, `payments`, `risk`, `providers`, `timeseries`).
   - `GET /healthz` the BFF's own liveness.
-- **`frontend/`** (next). A React + TypeScript + Vite app served by the BFF.
+- **`frontend/`**. A React + TypeScript + Vite single-page app, served by the BFF,
+  with a dark control-surface identity. Four views: **System** (live health of every
+  service), **Payment Trace** (enter a payment id to follow it across services: its
+  lifecycle, ledger effect, notifications, and the analytics event trace), **Verification**
+  (the requirement-to-scenario matrix), and **Analytics** (the read-model projections).
 
 ## Running the BFF
 
@@ -37,6 +41,23 @@ BFF trusts the OS certificate store automatically; on Cloud Run that is a no-op.
 
 The BFF serves the built frontend from `frontend/dist` when it exists, so it runs
 standalone as an API until the frontend is built.
+
+## Running the frontend
+
+For the integrated app (one origin), build the frontend and run the BFF:
+
+```
+cd frontend && npm install && npm run build
+cd ../bff && .venv/Scripts/python -m uvicorn app.main:app --port 8080
+# open http://localhost:8080
+```
+
+For frontend development with hot reload, run the BFF on :8080 and the Vite dev
+server separately; it proxies `/api` and `/healthz` to the BFF:
+
+```
+cd frontend && npm run dev        # http://localhost:5173
+```
 
 ## Boundaries
 
