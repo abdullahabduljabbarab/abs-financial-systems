@@ -7,9 +7,13 @@ from .sys_v_003 import SysV003
 from .sys_v_004 import SysV004
 from .sys_v_005 import SysV005
 from .sys_v_006 import SysV006
+from .sys_v_007 import SysV007
+from .sys_v_008 import SysV008
+from .sys_v_009 import SysV009
 from .sys_v_010 import SysV010
 from .sys_v_011 import SysV011
 from .sys_v_012 import SysV012
+from .sys_v_013 import SysV013
 
 # Registry keyed by the lowercase, hyphenated scenario id the runner accepts.
 REGISTRY: dict[str, type[Scenario]] = {
@@ -19,9 +23,13 @@ REGISTRY: dict[str, type[Scenario]] = {
     SysV004.id: SysV004,
     SysV005.id: SysV005,
     SysV006.id: SysV006,
+    SysV007.id: SysV007,
+    SysV008.id: SysV008,
+    SysV009.id: SysV009,
     SysV010.id: SysV010,
     SysV011.id: SysV011,
     SysV012.id: SysV012,
+    SysV013.id: SysV013,
 }
 
 __all__ = [
@@ -33,8 +41,12 @@ __all__ = [
     "SysV004",
     "SysV005",
     "SysV006",
+    "SysV007",
+    "SysV008",
+    "SysV009",
     "SysV010",
     "SysV011",
     "SysV012",
+    "SysV013",
     "REGISTRY",
 ]

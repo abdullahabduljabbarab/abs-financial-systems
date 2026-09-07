@@ -63,3 +63,39 @@ settled payment with the watermark advanced. The run writes its evidence file.
 
 **State:** complete. Next: the remaining scenarios (SYS-V-002 onward), then the
 portal.
+
+## Milestone 2: The full scenario suite
+
+**Goal:** Implement every system verification scenario (SYS-V-002 to SYS-V-013),
+including the failure-mode scenarios, against the live ecosystem, so every
+requirement in the system requirements has a black-box proof with evidence.
+
+**Done.** All thirteen scenarios run green. The scenarios that need conditions the
+happy path will not produce on demand use controlled operator tooling that always
+restores the deployment on exit, never a public "break yourself" endpoint:
+
+- **Deterministic provider outcomes** (SYS-V-004 duplicate callback, SYS-V-005
+  timeout pins and reconciles). A gated, verification-only seam in the orchestrator
+  forces a provider outcome from a `verify-outcome:<outcome>` destination. It ships
+  inert (`VERIFICATION_HOOKS=false`) and is enabled only inside a controlled window
+  that restores it, so deterministic failure injection is never available on the
+  ordinary deployment.
+- **A correlation trace into analytics** (SYS-V-011 traceability). The one
+  observability gap discovery found was closed by adding a read-only, metadata-only
+  `GET /analytics/events?correlation_id={id}` to analytics; the trace includes the
+  risk decision, proving the correlation id threads through risk and analytics.
+- **Failure injection at the platform edge**: an unreachable-risk override
+  (SYS-V-007, risk held for review, no money moved), Pub/Sub push cuts (SYS-V-008,
+  settlement is unaffected while the notification sink is down and the backlog
+  drains on restore; SYS-V-013, the synchronous risk decision path stays up while
+  its async feed is cut), and a duplicate publish (SYS-V-009, each consumer
+  deduplicates on `event_id`). Each injection captures the live state, applies the
+  fault, and restores and verifies it on exit.
+
+Every run writes an immutable evidence file recording the ids captured, the
+assertions, and, for the injection scenarios, the deployment revisions or
+subscription states before, during and after. The whole suite runs with
+`python -m abs_verify.runner all`.
+
+**State:** complete. Next: M3, the portal BFF, then M4 the frontend and M5 deploy
+and evidence.

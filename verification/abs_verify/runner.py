@@ -75,6 +75,19 @@ def run_scenario(scenario_id: str) -> int:
     return 0 if ev.passed else 1
 
 
+def run_all() -> int:
+    """Run every scenario in id order; return non-zero if any failed."""
+    results: list[tuple[str, bool]] = []
+    for sid in sorted(REGISTRY):
+        code = run_scenario(sid)
+        results.append((sid, code == 0))
+    passed = sum(1 for _, ok in results if ok)
+    print(f"\n===== {passed}/{len(results)} scenarios passed =====")
+    for sid, ok in results:
+        print(f"  {'PASS' if ok else 'FAIL'}  {sid}")
+    return 0 if passed == len(results) else 1
+
+
 def main(argv: list[str]) -> int:
     if not argv or argv[0] in ("-h", "--help"):
         print(__doc__)
@@ -84,6 +97,8 @@ def main(argv: list[str]) -> int:
         for sid, cls in sorted(REGISTRY.items()):
             print(f"{sid}  {cls.title}  ({', '.join(cls.covers)})")
         return 0
+    if argv[0] == "all":
+        return run_all()
     return run_scenario(argv[0])
 
 

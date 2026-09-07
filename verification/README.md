@@ -61,6 +61,16 @@ Defaults target the live ecosystem; override anything via the environment
 
 ## Status
 
-M1: the five typed clients and **SYS-V-001 (happy-path settlement)** run green
-against the live ecosystem. The remaining scenarios (SYS-V-002..013) follow the
-plan in [../docs/VERIFICATION_PLAN.md](../docs/VERIFICATION_PLAN.md).
+All thirteen scenarios (SYS-V-001..013) run green against the live ecosystem,
+covering every system requirement in
+[../docs/SYSTEM_REQUIREMENTS.md](../docs/SYSTEM_REQUIREMENTS.md), including the
+failure-injection scenarios. Run the whole suite with:
+
+```
+python -m abs_verify.runner all
+```
+
+The failure-mode scenarios use controlled operator tooling that always restores the
+deployment on exit (`abs_verify/ops.py`): the provider-outcome seam (SYS-V-004/005),
+an unreachable-risk override (SYS-V-007), Pub/Sub push cuts (SYS-V-008/013), and a
+duplicate publish (SYS-V-009). These need `ABS_GCLOUD` set.
