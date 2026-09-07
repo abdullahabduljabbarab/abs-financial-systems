@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  bff-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r portal/bff/requirements.txt pytest
+      - run: python -m pytest portal/bff/tests -q
+        working-directory: portal/bff
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+        working-directory: portal/frontend
+      - run: npm run build
+        working-directory: portal/frontend
+
+  deploy:
+    needs: [bff-tests, frontend-build]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      # Keyless auth via Workload Identity Federation: GitHub mints an OIDC token,
+      # GCP exchanges it to impersonate the deploy service account. No key is stored.
+      - uses: google-github-actions/auth@v2
+        with:
+          project_id: ledger-api-507618
+          workload_identity_provider: projects/465847189589/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: abs-portal-deploy@ledger-api-507618.iam.gserviceaccount.com
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker europe-west2-docker.pkg.dev --quiet
+      - run: docker build -t europe-west2-docker.pkg.dev/ledger-api-507618/abs-portal/abs-portal portal
+      - run: docker push europe-west2-docker.pkg.dev/ledger-api-507618/abs-portal/abs-portal
+      - run: >
+          gcloud run deploy abs-portal
+          --image europe-west2-docker.pkg.dev/ledger-api-507618/abs-portal/abs-portal
+          --region europe-west2
+          --allow-unauthenticated
+          --service-account abs-portal-runtime@ledger-api-507618.iam.gserviceaccount.com
